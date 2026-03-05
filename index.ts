@@ -2,8 +2,8 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-// التعديل هنا: أضفنا .js لضمان التعرف على الملف في بيئة التشغيل
-import { registerRoutes } from "./routes.js"; 
+// تم حذف .js هنا ليتوافق مع نظام التشغيل الجديد في Render
+import { registerRoutes } from "./routes"; 
 import * as fs from "fs";
 import * as path from "path";
 
