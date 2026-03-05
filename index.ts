@@ -2,7 +2,8 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { registerRoutes } from "./routes";
+// التعديل هنا: أضفنا .js لضمان التعرف على الملف في بيئة التشغيل
+import { registerRoutes } from "./routes.js"; 
 import * as fs from "fs";
 import * as path from "path";
 
@@ -18,9 +19,6 @@ declare module "http" {
 function setupCors(app: express.Application) {
   app.use((req, res, next) => {
     const origin = req.header("origin");
-
-    // Allow all origins in production for testing, or specifically your Render URL
-    // This fixed the 'Replit only' restriction
     if (origin) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
@@ -30,11 +28,9 @@ function setupCors(app: express.Application) {
       res.header("Access-Control-Allow-Headers", "Content-Type");
       res.header("Access-Control-Allow-Credentials", "true");
     }
-
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
     }
-
     next();
   });
 }
@@ -47,7 +43,6 @@ function setupBodyParsing(app: express.Application) {
       },
     }),
   );
-
   app.use(express.urlencoded({ extended: false }));
 }
 
@@ -65,21 +60,16 @@ function setupRequestLogging(app: express.Application) {
 
     res.on("finish", () => {
       if (!path.startsWith("/api")) return;
-
       const duration = Date.now() - start;
-
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
       }
-
       log(logLine);
     });
-
     next();
   });
 }
@@ -102,17 +92,14 @@ function serveExpoManifest(platform: string, res: Response) {
     platform,
     "manifest.json",
   );
-
   if (!fs.existsSync(manifestPath)) {
     return res
       .status(404)
       .json({ error: `Manifest not found for platform: ${platform}` });
   }
-
   res.setHeader("expo-protocol-version", "1");
   res.setHeader("expo-sfv-version", "0");
   res.setHeader("content-type", "application/json");
-
   const manifest = fs.readFileSync(manifestPath, "utf-8");
   res.send(manifest);
 }
@@ -145,7 +132,6 @@ function serveLandingPage({
 }
 
 function configureExpoAndLanding(app: express.Application) {
-  // Path for Render (assuming server/templates exists in your GitHub)
   const templatePath = path.resolve(
     process.cwd(),
     "server",
@@ -153,7 +139,7 @@ function configureExpoAndLanding(app: express.Application) {
     "landing-page.html",
   );
   
-  let landingPageTemplate = "<h1>OmniScore Backend</h1>";
+  let landingPageTemplate = "<h1>OmniScore Backend is Running</h1>";
   if (fs.existsSync(templatePath)) {
     landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
   }
@@ -164,16 +150,13 @@ function configureExpoAndLanding(app: express.Application) {
     if (req.path.startsWith("/api")) {
       return next();
     }
-
     if (req.path !== "/" && req.path !== "/manifest") {
       return next();
     }
-
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       return serveExpoManifest(platform, res);
     }
-
     if (req.path === "/") {
       return serveLandingPage({
         req,
@@ -182,7 +165,6 @@ function configureExpoAndLanding(app: express.Application) {
         appName,
       });
     }
-
     next();
   });
 
@@ -197,28 +179,22 @@ function setupErrorHandler(app: express.Application) {
       statusCode?: number;
       message?: string;
     };
-
     const status = error.status || error.statusCode || 500;
     const message = error.message || "Internal Server Error";
-
     console.error("Internal Server Error:", err);
-
     if (res.headersSent) {
       return next(err);
     }
-
     return res.status(status).json({ message });
   });
 }
 
 (async () => {
   app.set("trust proxy", 1);
-
   app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
   }));
-
   const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 100,
@@ -227,21 +203,14 @@ function setupErrorHandler(app: express.Application) {
     message: { error: "Too many requests, please try again later." },
   });
   app.use("/api/", apiLimiter);
-
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
-
   configureExpoAndLanding(app);
-
   const server = await registerRoutes(app);
-
   setupErrorHandler(app);
 
-  // Render uses PORT 10000 by default
   const port = parseInt(process.env.PORT || "10000", 10);
-  
-  // Cleaned up the .listen for Render compatibility
   server.listen(port, "0.0.0.0", () => {
     log(`express server serving on port ${port}`);
   });
